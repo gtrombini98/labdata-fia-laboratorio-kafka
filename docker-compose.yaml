@@ -1,0 +1,31 @@
+services:
+
+
+  postgres:
+    image: quay.io/debezium/example-postgres:${POSTGRES_DEBEZIUM}
+    container_name: postgres
+    ports:
+     - 5432:5432
+    environment:
+     - POSTGRES_USER=postgres
+     - POSTGRES_PASSWORD=postgres
+    networks:
+      rede_fia:
+
+  pgadmin:
+    container_name: pgadmin_container
+    image: dpage/pgadmin4:${PAGADMIN_VERSION}
+    environment:
+      PGADMIN_DEFAULT_EMAIL: lab-pgadmin4@pgadmin.org
+      PGADMIN_DEFAULT_PASSWORD: postgres
+    ports:
+      - "5433:80"
+    depends_on:
+      - postgres
+    networks:
+      rede_fia:
+
+networks:
+  rede_fia:
+    driver: bridge
+
