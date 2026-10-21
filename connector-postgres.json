@@ -7,5 +7,6 @@
         "database.password": "postgres",
         "database.dbname" : "postgres",
         "topic.prefix": "postgres",
-        "schema.include.list": "inventory"
+        "schema.include.list": "inventory",
+        "table.include.list": "inventory.customers,inventory.orders,inventory.products"
 }
