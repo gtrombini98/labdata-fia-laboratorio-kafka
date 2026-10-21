@@ -1,20 +1,18 @@
 services:
-
-
   postgres:
-    image: quay.io/debezium/example-postgres:${POSTGRES_DEBEZIUM}
+    image: quay.io/debezium/example-postgres:${POSTGRES_DEBEZIUM:-2.5}
     container_name: postgres
     ports:
-     - 5432:5432
+      - "5432:5432"
     environment:
-     - POSTGRES_USER=postgres
-     - POSTGRES_PASSWORD=postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     networks:
-      rede_fia:
+      - rede_fia
 
   pgadmin:
+    image: dpage/pgadmin4:${PAGADMIN_VERSION:-latest}
     container_name: pgadmin_container
-    image: dpage/pgadmin4:${PAGADMIN_VERSION}
     environment:
       PGADMIN_DEFAULT_EMAIL: lab-pgadmin4@pgadmin.org
       PGADMIN_DEFAULT_PASSWORD: postgres
@@ -23,9 +21,138 @@ services:
     depends_on:
       - postgres
     networks:
-      rede_fia:
+      - rede_fia
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:${CONFLUENT_VERSION:-7.5.0}
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_INIT_LIMIT: 5
+      ZOOKEEPER_SYNC_LIMIT: 2
+    ports:
+      - "2181:2181"
+    networks:
+      - rede_fia
+
+  kafka-broker:
+    image: confluentinc/cp-kafka:${CONFLUENT_VERSION:-7.5.0}
+    container_name: kafka-broker
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 101
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - rede_fia
+
+  connect:
+    image: confluentinc/cp-kafka-connect:${CONFLUENT_VERSION:-7.5.0}
+    container_name: kafka-connect
+    depends_on:
+      - kafka-broker
+      - postgres
+      - minio
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka-broker:29092
+      CONNECT_REST_PORT: 8083
+      CONNECT_REST_ADVERTISED_HOST_NAME: connect
+      CONNECT_GROUP_ID: shopvibe-connect
+
+      CONNECT_CONFIG_STORAGE_TOPIC: _shopvibe-connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _shopvibe-connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _shopvibe-connect-status
+
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+
+    command:
+      - bash
+      - -c
+      - |
+        confluent-hub install --no-prompt confluentinc/kafka-connect-s3:10.5.7
+        confluent-hub install --no-prompt debezium/debezium-connector-postgresql:2.5.4
+        /etc/confluent/docker/run
+    networks:
+      - rede_fia
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server --console-address ":9001" /data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_storage:/data
+    networks:
+      - rede_fia
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set myminio http://minio:9000 admin minioadmin; do
+        echo 'Aguardando MinIO...';
+        sleep 2;
+      done;
+      mc mb --ignore-existing myminio/bronze;
+      exit 0;
+      "
+    networks:
+      - rede_fia
+
+  akhq:
+    image: tchiotludo/akhq:latest
+    container_name: akhq
+    depends_on:
+      - kafka-broker
+      - connect
+    ports:
+      - "8080:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            shopvibe:
+              properties:
+                bootstrap.servers: "kafka-broker:29092"
+              connect:
+                - name: "kafka-connect"
+                  url: "http://connect:8083"
+    networks:
+      - rede_fia
 
 networks:
   rede_fia:
     driver: bridge
 
+volumes:
+  minio_storage:
