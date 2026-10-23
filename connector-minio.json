@@ -1,13 +1,13 @@
 {
         "connector.class": "io.confluent.connect.s3.S3SinkConnector",
-        "topics": "postgres.inventory.products",
+        "topics": "postgres.inventory.customers,postgres.inventory.order,postgres.inventory.pedidos",
         "s3.bucket.name": "bronze",
         "store.url": "http://minio:9000",
         "flush.size":3,
         "storage.class": "io.confluent.connect.s3.storage.S3Storage",      
         "format.class": "io.confluent.connect.s3.format.json.JsonFormat",     
         "s3.region": "us-east-1",
-        "aws.access.key.id": "cursolab",
-        "aws.secret.access.key": "cursolab",
+        "aws.access.key.id": "admin",
+        "aws.secret.access.key": "minioadmin",
         "behavior.on.null.values": "ignore"
 }
