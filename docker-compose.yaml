@@ -108,7 +108,7 @@ services:
       - rede_fia
 
   mc:
-    image: quay.io/minio/mc:${MINIO_MC_VERSION}
+    image: cgr.dev/chainguard/minio-client:latest-dev
     container_name: mc
     depends_on:
       - minio
