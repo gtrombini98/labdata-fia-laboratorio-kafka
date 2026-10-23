@@ -71,22 +71,17 @@ services:
       CONNECT_REST_PORT: 8083
       CONNECT_REST_ADVERTISED_HOST_NAME: connect
       CONNECT_GROUP_ID: shopvibe-connect
-
       CONNECT_CONFIG_STORAGE_TOPIC: _shopvibe-connect-configs
       CONNECT_OFFSET_STORAGE_TOPIC: _shopvibe-connect-offsets
       CONNECT_STATUS_STORAGE_TOPIC: _shopvibe-connect-status
-
       CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
       CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
-
       CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
-
       CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
-
     command:
       - bash
       - -c
@@ -98,7 +93,7 @@ services:
       - rede_fia
 
   minio:
-    image: cgr.dev/chainguard/minio:latest
+    image: fernandos/minio:${MINIO_VERSION}
     container_name: minio
     command: server --console-address ":9001" /data
     ports:
@@ -112,24 +107,21 @@ services:
     networks:
       - rede_fia
 
-  minio-init:
-    image: alpine:3.22
-    container_name: minio-init
+  mc:
+    image: quay.io/minio/mc:${MINIO_MC_VERSION}
+    container_name: mc
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-      apk add --no-cache curl &&
-      curl -fsSL
-      https://dl.min.io/client/mc/release/linux-amd64/mc
-      -o /usr/local/bin/mc &&
-      chmod +x /usr/local/bin/mc &&
-      until mc alias set local http://minio:9000 admin minioadmin; do
-        echo 'Aguardando MinIO...';
-        sleep 2;
-      done &&
-      mc mb --ignore-existing local/bronze
-      "
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        until /usr/bin/mc alias set myminio http://minio:9000 admin minioadmin; do
+          echo "Aguardando MinIO..."
+          sleep 2
+        done
+        /usr/bin/mc mb --ignore-existing myminio/bronze
+        sleep 3000
     networks:
       - rede_fia
 
