@@ -98,7 +98,7 @@ services:
       - rede_fia
 
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     container_name: minio
     command: server --console-address ":9001" /data
     ports:
